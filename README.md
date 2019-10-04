@@ -16,4 +16,17 @@ gz.close
 
 ```
 
+and writing:
+
+```Nim
+var wgz: GZFile
+if not wgz.open(f, "w6"):
+  quit "couldn't open file"
+
+for i in 0..10:
+  wgz.write("hello ", "big ")
+  wgz.write_line("world")
+wgz.close
+```
+
 this works for both gzipped and regular files
