@@ -86,7 +86,7 @@ proc readLine(g:GZFile, line: var string): bool =
       return true
     # read all without getting to end of buffer
     if line[line.high] != 0.char:
-      line.setLen(off + cs.len - 1)
+      line.setLen(off + cs.len)
       return true
 
     off = line.len
