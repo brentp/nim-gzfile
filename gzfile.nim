@@ -1,4 +1,4 @@
-
+import strutils
 
 when defined(macosx):
   const
@@ -31,6 +31,7 @@ proc gztell(g:gzFile): clong {.cdecl, importc:"gztell", myLib.}
 
 type GZFile* = object
   c: gzFile
+  cache: seq[string]
 
 const DEFAULT_BUF_SIZE = 8192
 
@@ -68,15 +69,22 @@ proc write_line*(g:GZFile, lines: varargs[string]): bool {.inline, discardable.}
   g.write(lines)
   result = 0 != g.c.gzputc('\n'.cint)
 
-proc readLine(g:GZFile, line: var string): bool =
+proc readLine(g:var GZFile, line: var string): bool =
   ## Newline character(s) are not part of the returned string. Returns false if the end of the file has been reached, true otherwise. If false is returned line contains no new data
+
+  if g.cache.len > 0:
+    line = g.cache.pop()
+    return true
+
   if line.len < 64: line.setLen(64)
   var off = 0
   # if the last value in the buffer is not \0, then we
   # have read a full line without filling it.
   line[line.high] = 1.char
+  var k = -1
 
   while true:
+    k.inc
     let cs = g.c.gzgets(line[off].addr.pointer, (line.len - off).cuint)
     if cs == nil:
       if gzeof(g.c) == 1.cint: return false
@@ -86,11 +94,16 @@ proc readLine(g:GZFile, line: var string): bool =
       return true
     # read all without getting to end of buffer
     if line[line.high] != 0.char:
-      line.setLen(off + cs.len)
+      line.setLen(off + cs.len - 1)
+      # if there's a new line, we read the full buffer and got a newline.
+      if '\n' in line[0..<off]:
+        for l in line.rsplit('\n'):
+          g.cache.add(l)
+        line.setLen(g.cache.pop().len)
       return true
 
     off = line.len
-    line.setLen(line.len * 2)
+    line.setLen(int(line.len + max(2, int(line.len.float * 0.15))))
     line[line.high] = 1.char
   result = true
 
@@ -103,7 +116,7 @@ iterator gzLines*(path: string): string =
     yield line
   g.close
 
-iterator lines*(g: GZFile): string =
+iterator lines*(g: var GZFile): string =
   var line = newString(128)
   while g.readLine(line):
     yield line
